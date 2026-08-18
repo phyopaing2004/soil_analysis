@@ -1,103 +1,88 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="my">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TFLite Model Tester</title>
+    <title>Soil Classification - TFLite Test</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f4f6f9;
-            margin: 0;
-            padding: 40px;
-            display: flex;
-            justify-content: center;
+            text-align: center;
+            margin-top: 50px;
         }
         .container {
-            background: #ffffff;
-            padding: 30px;
+            display: inline-block;
+            padding: 20px;
+            border: 1px solid #ccc;
             border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
-            width: 100%;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
-        h2 {
-            margin-top: 0;
-            color: #333;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        input[type="file"] {
-            display: block;
-            margin-top: 10px;
-        }
-        button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            width: 100%;
-            font-size: 16px;
-        }
-        button:hover {
-            background-color: #0056b3;
+        input, button {
+            margin: 10px;
+            padding: 10px;
         }
         #result {
-            margin-top: 20px;
-            padding: 15px;
-            background: #e9ecef;
-            border-radius: 4px;
-            word-wrap: break-word;
+            font-weight: bold;
+            color: #2b7a78;
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>TFLite Model Inference</h2>
-    
-    <div class="form-group">
-        <label for="imageInput">Upload Image for Testing:</label>
+    <div class="container">
+        <h2>Loam Soil vs Sandy Soil Classifier</h2>
+        <p>မြေဆီလွှာ ဓာတ်ပုံ ပေးပို့၍ စမ်းသပ်ပါ</p>
+        
         <input type="file" id="imageInput" accept="image/*">
+        <br>
+        <button onclick="uploadImage()">Predict</button>
+
+        <h3>Result: <span id="result">-</span></h3>
     </div>
 
-    <button onclick="uploadAndPredict()">Predict</button>
+    <script>
+        // -------------------------------------------------------------
+        // ဒီနေရာမှာ Render က ရလာတဲ့ Backend Live URL ကို ပြောင်းပေးပါ
+        // -------------------------------------------------------------
+        const RENDER_BACKEND_URL = "https://your-app-name.onrender.com"; 
 
-    <h3>Result:</h3>
-    <pre id="result">Waiting for input...</pre>
-</div>
+        async function uploadImage() {
+            const input = document.getElementById('imageInput');
+            const resultElement = document.getElementById('result');
 
-<script>
-async function uploadAndPredict() {
-    const fileInput = document.getElementById('imageInput');
-    const resultElement = document.getElementById('result');
+            if (input.files.length === 0) {
+                alert("ကျေးဇူးပြု၍ မြေဆီလွှာ ပုံတစ်ပုံ ရွေးပေးပါ!");
+                return;
+            }
 
-    if (fileInput.files.length === 0) {
-        alert('Please select an image file first.');
-        return;
-    }
+            resultElement.innerText = "Analyzing...";
 
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
 
-    resultElement.textContent = "Processing...";
+            try {
+                // Render Backend သို့ API Request ပို့ခြင်း
+                const response = await fetch(`${RENDER_BACKEND_URL}/predict`, {
+                    method: 'POST',
+                    body: formData
+                });
 
-    try {
-        const response = await fetch('/predict', {
-            method: 'POST',
-            body: formData
-        });
+                if (!response.ok) {
+                    throw new Error(`Server Error: ${response.status}`);
+                }
 
-        const data = await response.json();
-        resultElement.textContent = JSON.stringify(data, null, 2);
-    } catch (error) {
-        resultElement.textContent = "Error during prediction: " + error.message;
-    }
-}
-</script>
-
+                const data = await response.json();
+                
+                if (data.error) {
+                    resultElement.innerText = "Error: " + data.error;
+                } else {
+                    resultElement.innerText = `${data.prediction} (Confidence: ${data.confidence}%)`;
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                resultElement.innerText = "Connection Failed! Render Server ကို စစ်ဆေးပါ။";
+            }
+        }
+    </script>
 </body>
 </html>

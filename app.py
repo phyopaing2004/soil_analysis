@@ -1,79 +1,50 @@
-import os
 import io
+from flask import Flask, render_template, request, jsonify
 import numpy as np
-from flask import Flask, request, jsonify, render_template
 from PIL import Image
-
-# Import tflite_runtime (lightweight alternative to full TensorFlow)
-try:
-    import tflite_runtime.interpreter as tflite
-except ImportError:
-    import tensorflow.lite as tflite
+import tflite_runtime.interpreter as tflite  # သို့မဟုတ် import tensorflow as tf
 
 app = Flask(__name__)
 
-MODEL_PATH = "efficientnet_model.tflite"
-
-# Load TFLite Model
-interpreter = tflite.Interpreter(model_path=MODEL_PATH)
+# TFLite Model ကို Load လုပ်ခြင်း
+interpreter = tflite.Interpreter(model_path="efficientnet_model.tflite")
 interpreter.allocate_tensors()
 
-# Get input and output tensor details
+# Input နဲ့ Output details ယူခြင်း
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 
-input_shape = input_details[0]['shape']
-input_type = input_details[0]['dtype']
 
-@app.route('/')
-def home():
-    """Serves the frontend page."""
-    return render_template('index.html')
+@app.route("/")
+def index():
+    return render_template("index.html")
 
-@app.route('/predict', methods=['POST'])
+
+@app.route("/predict", methods=["POST"])
 def predict():
-    """API Endpoint for model inference."""
-    try:
-        # Case 1: Image Upload Input
-        if 'file' in request.files:
-            file = request.files['file']
-            image = Image.open(io.BytesIO(file.read())).convert('RGB')
-            
-            # Resize image according to model input dimensions
-            target_h, target_w = input_shape[1], input_shape[2]
-            image = image.resize((target_w, target_h))
-            
-            input_data = np.array(image, dtype=np.float32)
-            
-            # Normalize pixel values if model expects 0.0 - 1.0 range
-            if input_type == np.float32:
-                input_data = input_data / 255.0
-                
-            input_data = np.expand_dims(input_data, axis=0)
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
 
-        # Case 2: JSON Numerical Array Input
-        elif request.is_json:
-            payload = request.get_json()
-            input_data = np.array(payload['data'], dtype=input_type)
-            if len(input_data.shape) == len(input_shape) - 1:
-                input_data = np.expand_dims(input_data, axis=0)
+    file = request.files["file"]
 
-        else:
-            return jsonify({'error': 'No file or valid JSON data provided'}), 400
+    # Image Preprocessing (သင့် Model Input Size ပေါ်မူတည်ပြီး ပြင်ဆင်ပါ)
+    image = Image.open(file.stream).convert("RGB")
+    image = image.resize((224, 224))  # Model ရဲ့ input size အတိုင်း ပြင်ပါ
+    input_data = np.expand_dims(image, axis=0).astype(np.float32)
 
-        # Perform Inference
-        interpreter.set_tensor(input_details[0]['index'], input_data)
-        interpreter.invoke()
-        output_data = interpreter.get_tensor(output_details[0]['index'])
+    # Normalization လိုအပ်ပါက ပြုလုပ်ရန် (ဥပမာ - / 255.0)
+    input_data = input_data / 255.0
 
-        return jsonify({
-            'status': 'success',
-            'predictions': output_data.tolist()
-        })
+    # Prediction ပြုလုပ်ခြင်း
+    interpreter.set_tensor(input_details[0]["index"], input_data)
+    interpreter.invoke()
+    output_data = interpreter.get_tensor(output_details[0]["index"])
 
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+    # Output ကို Process လုပ်ခြင်း
+    result = float(output_data[0][0])  # Output shape ပေါ်မူတည်ပြီး ပြင်ပါ
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    return jsonify({"prediction": result})
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
