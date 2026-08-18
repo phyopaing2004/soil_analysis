@@ -15,7 +15,7 @@ interpreter.allocate_tensors()
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 
-labels = ["Loam_Soil", "Sandy"] # သင့် Class အစဉ်အတိုင်း ပြင်ပါ
+labels = ["Sandy", "Loam_Soil"] # သင့် Class အစဉ်အတိုင်း ပြင်ပါ
 
 # --- Root Route ဖြည့်စွက်ချက် ---
 @app.route('/', methods=['GET'])
