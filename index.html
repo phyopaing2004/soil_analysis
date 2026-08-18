@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soil Classification Tester</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .card {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 480px;
+            text-align: center;
+        }
+
+        h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .upload-area {
+            border: 2px dashed #3498db;
+            border-radius: 12px;
+            padding: 25px;
+            cursor: pointer;
+            background-color: #f8fafc;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            background-color: #ebf5fb;
+            border-color: #2980b9;
+        }
+
+        .upload-area p {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        #imagePreview {
+            max-width: 100%;
+            max-height: 220px;
+            border-radius: 8px;
+            display: none;
+            margin: 0 auto;
+            object-fit: cover;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        button {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #27ae60;
+        }
+
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .result-box {
+            margin-top: 25px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            display: none;
+            text-align: left;
+            border-left: 5px solid #2ecc71;
+        }
+
+        .result-title {
+            font-weight: bold;
+            color: #34495e;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .result-item {
+            font-size: 15px;
+            color: #2c3e50;
+            margin: 4px 0;
+        }
+
+        .error-box {
+            margin-top: 20px;
+            padding: 12px;
+            background-color: #fadbd8;
+            color: #78281f;
+            border-radius: 8px;
+            display: none;
+            font-size: 14px;
+        }
+
+        .spinner {
+            display: none;
+            margin: 15px auto 0;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>🌱 Soil Classifier Testing</h2>
+
+    <!-- Image Upload Area -->
+    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+        <img id="imagePreview" alt="Image Preview">
+        <p id="uploadText">📁 ပုံရွေးချယ်ရန် သို့မဟုတ် ဤနေရာသို့ နှိပ်ပါ</p>
+        <input type="file" id="fileInput" accept="image/*" onchange="previewImage(event)">
+    </div>
+
+    <!-- Submit Button -->
+    <button id="predictBtn" onclick="sendPrediction()" disabled>Predict Soil Type</button>
+
+    <!-- Loading Spinner -->
+    <div class="spinner" id="spinner"></div>
+
+    <!-- Error Display -->
+    <div class="error-box" id="errorBox"></div>
+
+    <!-- Result Display -->
+    <div class="result-box" id="resultBox">
+        <div class="result-title">📊 Predict Result:</div>
+        <div class="result-item"><b>Soil Class:</b> <span id="resClass" style="color: #e67e22;">-</span></div>
+        <div class="result-item"><b>Confidence:</b> <span id="resConfidence" style="color: #2980b9;">-</span></div>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://127.0.0.1:5000/predict";
+    let selectedFile = null;
+
+    // ပုံရွေးလိုက်သည့်အခါ Preview ပြသပေးခြင်း
+    function previewImage(event) {
+        const file = event.target.files[0];
+        if (file) {
+            selectedFile = file;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const imgElement = document.getElementById('imagePreview');
+                imgElement.src = e.target.result;
+                imgElement.style.display = 'block';
+                document.getElementById('uploadText').style.display = 'none';
+                document.getElementById('predictBtn').disabled = false;
+                
+                // ရလဒ်အဟောင်းများ ဖျောက်ခြင်း
+                document.getElementById('resultBox').style.display = 'none';
+                document.getElementById('errorBox').style.display = 'none';
+            }
+            reader.readAsDataURL(file);
+        }
+    }
+
+    // Flask Backend သို့ Request ပို့ခြင်း
+    async function sendPrediction() {
+        if (!selectedFile) return;
+
+        const formData = new FormData();
+        formData.append('image', selectedFile);
+
+        // UI States Update
+        document.getElementById('spinner').style.display = 'block';
+        document.getElementById('predictBtn').disabled = true;
+        document.getElementById('resultBox').style.display = 'none';
+        document.getElementById('errorBox').style.display = 'none';
+
+        try {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Success ရလဒ်ဖော်ပြခြင်း
+                document.getElementById('resClass').innerText = data.class;
+                document.getElementById('resConfidence').innerText = data.confidence;
+                document.getElementById('resultBox').style.display = 'block';
+            } else {
+                // Backend မှ Error တုံ့ပြန်လျှင်
+                showError(data.error || "Prediction လုပ်ဆောင်၍ မရပါ။");
+            }
+        } catch (error) {
+            // Network သို့မဟုတ် CORS Error
+            showError("API နှင့် ချိတ်ဆက်၍ မရပါ။ Flask server အလုပ်လုပ်နေလား စစ်ဆေးပါ။");
+            console.error("Error:", error);
+        } finally {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('predictBtn').disabled = false;
+        }
+    }
+
+    function showError(msg) {
+        const errorBox = document.getElementById('errorBox');
+        errorBox.innerText = msg;
+        errorBox.style.display = 'block';
+    }
+</script>
+
+</body>
+</html>
