@@ -44,45 +44,48 @@
         // -------------------------------------------------------------
         // ဒီနေရာမှာ Render က ရလာတဲ့ Backend Live URL ကို ပြောင်းပေးပါ
         // -------------------------------------------------------------
-        const RENDER_BACKEND_URL = "https://your-app-name.onrender.com"; 
+	// သင့် Render Live URL အမှန်ကို ထည့်ပါ (အဆုံးမှာ / မပါရပါ)
+	const RENDER_BACKEND_URL = "http://127.0.0.1:5000"; 
 
         async function uploadImage() {
-            const input = document.getElementById('imageInput');
-            const resultElement = document.getElementById('result');
+    const input = document.getElementById('imageInput');
+    const resultElement = document.getElementById('result');
 
-            if (input.files.length === 0) {
-                alert("ကျေးဇူးပြု၍ မြေဆီလွှာ ပုံတစ်ပုံ ရွေးပေးပါ!");
-                return;
-            }
+    if (input.files.length === 0) {
+        alert("ကျေးဇူးပြု၍ မြေဆီလွှာ ပုံတစ်ပုံ ရွေးပေးပါ!");
+        return;
+    }
 
-            resultElement.innerText = "Analyzing...";
+    resultElement.innerText = "Analyzing...";
 
-            const formData = new FormData();
-            formData.append('file', input.files[0]);
+    const formData = new FormData();
+    // 🔴 Key Name ကို 'file' မှ 'image' သို့ ပြောင်းပါ (Flask request.files['image'] နဲ့ တူစေရန်)
+    formData.append('image', input.files[0]);
 
-            try {
-                // Render Backend သို့ API Request ပို့ခြင်း
-                const response = await fetch(`${RENDER_BACKEND_URL}/predict`, {
-                    method: 'POST',
-                    body: formData
-                });
+    try {
+        const response = await fetch(`${RENDER_BACKEND_URL}/predict`, {
+            method: 'POST',
+            body: formData
+        });
 
-                if (!response.ok) {
-                    throw new Error(`Server Error: ${response.status}`);
-                }
-
-                const data = await response.json();
-                
-                if (data.error) {
-                    resultElement.innerText = "Error: " + data.error;
-                } else {
-                    resultElement.innerText = `${data.prediction} (Confidence: ${data.confidence}%)`;
-                }
-            } catch (error) {
-                console.error("Error:", error);
-                resultElement.innerText = "Connection Failed! Render Server ကို စစ်ဆေးပါ။";
-            }
+        if (!response.ok) {
+            throw new Error(`Server Error: ${response.status}`);
         }
+
+        const data = await response.json();
+        
+        if (data.error) {
+            resultElement.innerText = "Error: " + data.error;
+        } else {
+            // 🔴 Flask က 'class' ဆိုတဲ့ key နဲ့ ပြန်ပေးထားတာမို့ data.class ကို သုံးရပါမည်
+            // Flask ရဲ့ confidence ထဲမှာ % ပါပြီးသားဖြစ်လို့ % ထပ်ထည့်စရာမလိုပါ။
+            resultElement.innerText = `${data.class} (Confidence: ${data.confidence})`;
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        resultElement.innerText = "Connection Failed! Render Server ကို စစ်ဆေးပါ။";
+    }
+}
     </script>
 </body>
 </html>

@@ -1,79 +1,59 @@
-import io
-from flask import Flask, render_template, request, jsonify
-from flask_cors import CORS
+import json
 import numpy as np
-from PIL import Image
 import tensorflow as tf
+from PIL import Image
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+
+from config import *  # config.py ထဲက IMG_SIZE နဲ့ MODEL_DIR ကို သုံးပါမည်
 
 app = Flask(__name__)
-CORS(app)  # Cross-Origin Request များကို လက်ခံရန်
+CORS(app)
 
-# -------------------------------------------------------------
-# 1. TFLite Model ကို TensorFlow Lite Interpreter ဖြင့် Load လုပ်ခြင်း
-# -------------------------------------------------------------
-MODEL_PATH = "efficientnet_model.tflite"
+# 1. 07_predict.py အတိုင်း exact model နဲ့ class_names loading လုပ်ခြင်း
+MODEL_NAME = "efficientnetb0"
+model_path = MODEL_DIR / MODEL_NAME / "best_model.keras"
+class_path = MODEL_DIR / MODEL_NAME / "class_names.json"
 
-interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
-interpreter.allocate_tensors()
+if not model_path.exists():
+    raise SystemExit(f"Model not found at: {model_path}")
 
-# Input နှင့် Output Tensor Details ယူခြင်း
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
+# Keras Model Direct Loading
+model = tf.keras.models.load_model(model_path)
 
-# Class Label များ (သင့် Model ရဲ့ Label များအတိုင်း လိုအပ်ပါက ပြင်ပါ)
-CLASSES = ["Loam_Soil", "Sandy_Soil"]
+with open(class_path, encoding="utf-8") as f:
+    class_names = json.load(f)
 
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({"status": "online", "message": "Soil Analysis API is Ready"})
 
-# -------------------------------------------------------------
-# 2. Flask Routes
-# -------------------------------------------------------------
-@app.route("/")
-def index():
-  return render_template("index.html")
-
-
-@app.route("/predict", methods=["POST"])
+@app.route('/predict', methods=['POST'])
 def predict():
-  try:
-    if "file" not in request.files:
-      return jsonify({"error": "No file uploaded"}), 400
-
-    file = request.files["file"]
-
-    if file.filename == "":
-      return jsonify({"error": "No file selected"}), 400
-
-    # Image Preprocessing
-    image = Image.open(file.stream).convert("RGB")
-
-    # EfficientNet Input Size သတ်မှတ်ခြင်း (224x224)
-    image = image.resize((224, 224))
-
-    # Numpy Array အဖြစ် ပြောင်းလဲပြီး Batch Dimension ထည့်ခြင်း (Shape: [1, 224, 224, 3])
-    input_data = np.expand_dims(image, axis=0).astype(np.float32)
-
-    # Normalization (0 မှ 1 အတွင်း ပြောင်းခြင်း)
-    input_data = input_data / 255.0
-
-    # Model သို့ Input Data ထည့်သွင်း၍ Predict လုပ်ခြင်း
-    interpreter.set_tensor(input_details[0]["index"], input_data)
-    interpreter.invoke()
-
-    # Result ရယူခြင်း
-    output_data = interpreter.get_tensor(output_details[0]["index"])
-
-    # Output processing (Classification Result)
-    predicted_index = int(np.argmax(output_data[0]))
-    confidence = float(np.max(output_data[0])) * 100
-
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image uploaded'}), 400
+    
+    file = request.files['image']
+    
+    # 2. 07_predict.py ပါ ပုံစံအတိုင်း Exact Image Processing ပြုလုပ်ခြင်း
+    img = Image.open(file.stream).convert('RGB')
+    
+    # IMG_SIZE အတိုင်း Resize လုပ်ခြင်း
+    img = img.resize((IMG_SIZE[1], IMG_SIZE[0]))
+    
+    arr = tf.keras.utils.img_to_array(img)
+    arr = np.expand_dims(arr, axis=0)
+    
+    # 3. Prediction ယူခြင်း
+    probs = model.predict(arr, verbose=0)[0]
+    
+    max_idx = int(np.argmax(probs))
+    confidence = float(probs[max_idx])
+    
     return jsonify({
-        "prediction": CLASSES[predicted_index],
-        "confidence": round(confidence, 2),
+        'class': class_names[max_idx],
+        'confidence': f"{confidence * 100:.2f}%"
     })
 
-  except Exception as e:
-    return jsonify({"error": str(e)}), 500
-
-
-if __name__ == "__main__":
-  app.run(host="0.0.0.0", port=5000, debug=True)
+if __name__ == '__main__':
+    app.run(port=5000, debug=True)
