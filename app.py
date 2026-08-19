@@ -9,7 +9,7 @@ from pathlib import Path
 from config import *  # config.py ထဲက IMG_SIZE ကို သုံးပါမည်
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # app.py ရှိသော Folder လမ်းကြောင်းကို ယူခြင်း
 BASE_DIR = Path(__file__).resolve().parent
